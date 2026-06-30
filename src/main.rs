@@ -1,4 +1,4 @@
-use gap_buffer_rust::GapBuffer;
+use gap_buffer::GapBuffer;
 
 fn main() {
     let mut buf = GapBuffer::new("The_fence!");
