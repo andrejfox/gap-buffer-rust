@@ -19,6 +19,9 @@ pub enum GapBufferError {
     InvalidRange,
 }
 impl GapBuffer {
+    /// Creates a new gap buffer initialized with the given text.
+    ///
+    /// The cursor is placed at the end of the text.
     pub fn new<T: AsRef<str>>(string: T) -> Self {
         let s = string.as_ref();
         let num_of_chars = s.chars().count();
@@ -46,6 +49,7 @@ impl GapBuffer {
 }
 
 impl GapBuffer {
+    /// Inserts `string` at the cursor.
     pub fn insert<T: AsRef<str>>(&mut self, string: T) {
         let s = string.as_ref();
         let num_of_chars = s.chars().count();
@@ -75,6 +79,7 @@ impl GapBuffer {
         self.size *= 2;
     }
 
+    /// Deletes the character after the cursor.
     pub fn delete(&mut self) -> Result<(), GapBufferError> {
         if self.gap_end >= self.size - 1 {
             return Err(GapBufferError::CursorAtEnd);
@@ -86,6 +91,7 @@ impl GapBuffer {
         Ok(())
     }
 
+    /// Deletes the character before the cursor.
     pub fn backspace(&mut self) -> Result<(), GapBufferError> {
         if self.gap_start == 0 {
             return Err(GapBufferError::CursorAtEnd);
@@ -97,6 +103,7 @@ impl GapBuffer {
         Ok(())
     }
 
+    /// Moves the cursor to `loc`.
     pub fn move_cursor(&mut self, loc: usize) -> Result<(), GapBufferError> {
         if loc > self.text_size {
             return Err(GapBufferError::OutOfBounds);
@@ -119,6 +126,7 @@ impl GapBuffer {
         Ok(())
     }
 
+    /// Moves the cursor one position left.
     pub fn move_left(&mut self) -> Result<(), GapBufferError> {
         if self.gap_start == 0 {
             return Err(GapBufferError::CursorAtEnd);
@@ -133,6 +141,7 @@ impl GapBuffer {
         Ok(())
     }
 
+    /// Moves the cursor one position right.
     pub fn move_right(&mut self) -> Result<(), GapBufferError> {
         if self.gap_end >= self.size - 1 {
             return Err(GapBufferError::CursorAtEnd);
@@ -147,33 +156,34 @@ impl GapBuffer {
         Ok(())
     }
 
-    pub fn fetch(&self, x: usize, y: usize) -> Result<String, GapBufferError> {
-        if x > y || y >= self.text_size {
+    /// Returns the text in the index range `[start, end]`.
+    pub fn fetch(&self, start: usize, end: usize) -> Result<String, GapBufferError> {
+        if start > end || end >= self.text_size {
             return Err(GapBufferError::InvalidRange);
         }
 
         let mut out = String::new();
 
-        if x < self.gap_start {
-            let left_len = y.min(self.gap_start - 1) - x + 1;
+        if start < self.gap_start {
+            let left_len = end.min(self.gap_start - 1) - start + 1;
 
             let left: &[char] = unsafe {
-                slice::from_raw_parts(self.data.as_ptr().add(x) as *const char, left_len)
+                slice::from_raw_parts(self.data.as_ptr().add(start) as *const char, left_len)
             };
 
             out.extend(left.iter().copied());
         }
 
-        if y >= self.gap_start {
+        if end >= self.gap_start {
             let right_start;
             let right_len;
 
-            if x >= self.gap_start {
-                right_start = self.gap_end + x - self.gap_start + 1;
-                right_len = y - x + 1;
+            if start >= self.gap_start {
+                right_start = self.gap_end + start - self.gap_start + 1;
+                right_len = end - start + 1;
             } else {
                 right_start = self.gap_end + 1;
-                right_len = y - (self.gap_start - 1);
+                right_len = end - (self.gap_start - 1);
             }
 
             let right: &[char] = unsafe {
