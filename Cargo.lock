@@ -3,5 +3,5 @@
 version = 4
 
 [[package]]
-name = "gap-buffer-rust"
+name = "gap_buffer"
 version = "0.1.0"
