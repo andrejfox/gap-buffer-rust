@@ -77,12 +77,14 @@ const MIN_SIZE: usize = 16;
 impl GapBuffer {
     fn new<T: AsRef<str>>(string: T) -> Self {
         let s = string.as_ref();
+
         let size;
         if s.len() < MIN_SIZE {
             size = MIN_SIZE;
         } else {
             size = s.len().next_power_of_two();
         }
+
         let mut data: Box<[MaybeUninit<char>]> = Box::new_uninit_slice(size * 2);
 
         for (i, c) in s.chars().enumerate() {
@@ -157,13 +159,13 @@ impl GapBuffer {
             let delta = self.gap_start - loc;
 
             for _ in 0..delta {
-                self.move_left().unwrap();
+                self.move_left()?;
             }
         } else if loc > self.gap_start {
             let delta = loc - self.gap_start;
 
             for _ in 0..delta {
-                self.move_right().unwrap();
+                self.move_right()?;
             }
         }
 
@@ -205,10 +207,11 @@ impl GapBuffer {
 
         let mut out = String::new();
 
-        let left_end = y.min(self.gap_start - 1);
         if x < self.gap_start {
+            let left_len = y.min(self.gap_start - 1) - x + 1;
+
             let left: &[char] = unsafe {
-                slice::from_raw_parts(self.data.as_ptr().add(x) as *const char, left_end - x + 1)
+                slice::from_raw_parts(self.data.as_ptr().add(x) as *const char, left_len)
             };
 
             out.extend(left.iter().copied());
@@ -216,20 +219,20 @@ impl GapBuffer {
 
         if y >= self.gap_start {
             let right_start;
-            let right_end;
+            let right_len;
 
             if x >= self.gap_start {
-                right_start = x - (self.gap_start - 1) + self.gap_end;
-                right_end = y - x + 1;
+                right_start = self.gap_end + x - (self.gap_start - 1);
+                right_len = y - x + 1;
             } else {
                 right_start = self.gap_end + 1;
-                right_end = y - (self.gap_start - 1);
+                right_len = y - (self.gap_start - 1);
             }
 
             let right: &[char] = unsafe {
                 slice::from_raw_parts(
                     self.data.as_ptr().add(right_start) as *const char,
-                    right_end,
+                    right_len,
                 )
             };
 
