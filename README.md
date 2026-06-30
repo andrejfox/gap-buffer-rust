@@ -17,7 +17,6 @@ gap_buffer = { git = "https://github.com/andrejfox/gap-buffer-rust.git" }
 - Backspace
 - Cursor movement
 - Efficient editing near the cursor
-- Minimal dependencies
 
 ## Example
 
