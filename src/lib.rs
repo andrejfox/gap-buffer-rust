@@ -1,8 +1,6 @@
 use std::mem::MaybeUninit;
 use std::{fmt, io, slice};
-use std::fs::File;
 use std::path::Path;
-use std::io::Read;
 
 const MIN_SIZE: usize = 16;
 
@@ -52,10 +50,7 @@ impl GapBuffer {
 
     /// Creates a new gap buffer initialized with the contents for a file
     pub fn open<P: AsRef<Path>>(path: P) -> io::Result<Self> {
-        let mut file = File::open(path)?;
-        let mut contents = String::new();
-        file.read_to_string(&mut contents)?;
-        Ok(GapBuffer::new(contents))
+        Ok(Self::new(std::fs::read_to_string(path)?))
     }
 }
 
