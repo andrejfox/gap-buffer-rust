@@ -4,6 +4,12 @@
 
 A simple gap buffer implementation in Rust.
 
+```toml
+# You can just add it to Cargo.toml as such:
+[dependencies]
+gap_buffer = { git = "https://github.com/andrejfox/gap-buffer-rust.git" }
+```
+
 ## Features
 
 - Insert
