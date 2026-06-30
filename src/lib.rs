@@ -1,5 +1,8 @@
 use std::mem::MaybeUninit;
-use std::{fmt, slice};
+use std::{fmt, io, slice};
+use std::fs::File;
+use std::path::Path;
+use std::io::Read;
 
 const MIN_SIZE: usize = 16;
 
@@ -45,6 +48,14 @@ impl GapBuffer {
             gap_end: size * 2 - 1,
             data,
         }
+    }
+
+    /// Creates a new gap buffer initialized with the contents for a file
+    pub fn open<P: AsRef<Path>>(path: P) -> io::Result<Self> {
+        let mut file = File::open(path)?;
+        let mut contents = String::new();
+        file.read_to_string(&mut contents)?;
+        Ok(GapBuffer::new(contents))
     }
 }
 
@@ -253,6 +264,45 @@ impl fmt::Debug for GapBuffer {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn open_reads_existing_file() {
+        use std::fs;
+        use std::time::{SystemTime, UNIX_EPOCH};
+
+        let path = std::env::temp_dir().join(format!(
+            "gap_buffer_test_{}.txt",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+
+        fs::write(&path, "Hello, world!").unwrap();
+
+        let buffer = GapBuffer::open(&path).unwrap();
+
+        assert_eq!(buffer.to_string(), "Hello, world!");
+
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn open_returns_error_for_missing_file() {
+        use std::time::{SystemTime, UNIX_EPOCH};
+
+        let path = std::env::temp_dir().join(format!(
+            "definitely_does_not_exist_{}.txt",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+
+        let result = GapBuffer::open(&path);
+
+        assert!(result.is_err());
+    }
 
     #[test]
     fn display_empty_buffer() {
