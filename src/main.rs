@@ -37,15 +37,33 @@ fn main() {
     println!("{}", buf.fetch(7, 9).unwrap());
     println!("{}", buf.fetch(8, 9).unwrap());
     println!("{}", buf.fetch(9, 9).unwrap());
+
+    println!("{buf:?}");
+
+    buf.insert("heyheyhey");
+    println!("{buf:?}");
+    buf.backspace();
+    println!("{buf:?}");
+    buf.delete();
+    println!("{buf:?}");
+
+    let mut buf2 = GapBuffer::new("Hey Monica, hey!");
+    println!("{buf2:?}");
+    buf2.move_cursor(11);
+    println!("{buf2:?}");
+    buf2.insert("xxxxxxxxxxxxxxxx");
+    println!("{buf2:?}");
+    buf2.insert("x");
+    println!("{buf2:?}");
 }
 
 #[derive(Clone)]
 pub struct GapBuffer {
-    pub size: usize,
-    pub text_size: usize,
-    pub gap_start: usize,
-    pub gap_end: usize,
-    pub data: Box<[MaybeUninit<char>]>,
+    size: usize,
+    text_size: usize,
+    gap_start: usize,
+    gap_end: usize,
+    data: Box<[MaybeUninit<char>]>,
 }
 
 #[derive(Debug)]
@@ -80,14 +98,32 @@ impl GapBuffer {
         }
     }
 
-    pub fn insert<T: AsRef<str>>(&self, string: T) {
+    pub fn insert<T: AsRef<str>>(&mut self, string: T) {
         let s = string.as_ref();
 
-        if s.len() + self.text_size > self.size {
-            return;
+        while s.len() + self.text_size > self.size {
+            self.double_buffer();
         }
 
-        todo!();
+        for (i, c) in s.chars().enumerate() {
+            self.data[i + self.gap_start].write(c);
+        }
+
+        self.gap_start += s.len();
+        self.text_size += s.len();
+    }
+
+    fn double_buffer(&mut self) {
+        let mut new_data: Box<[MaybeUninit<char>]> = Box::new_uninit_slice(self.size * 2);
+
+        new_data[..self.gap_start].copy_from_slice(&self.data[..self.gap_start]);
+
+        new_data[(self.size + self.gap_end + 1)..]
+            .copy_from_slice(&self.data[(self.gap_end + 1)..]);
+
+        self.data = new_data;
+        self.gap_end += self.size;
+        self.size *= 2;
     }
 
     pub fn delete(&mut self) -> Result<(), GapBufferError> {
@@ -95,6 +131,7 @@ impl GapBuffer {
             return Err(GapBufferError::CursorAtEnd);
         }
 
+        self.text_size -= 1;
         self.gap_end += 1;
 
         Ok(())
@@ -105,6 +142,7 @@ impl GapBuffer {
             return Err(GapBufferError::CursorAtEnd);
         }
 
+        self.text_size -= 1;
         self.gap_start -= 1;
 
         Ok(())
@@ -200,16 +238,6 @@ impl GapBuffer {
 
         Ok(out)
     }
-
-    fn get_before_gap(&self) -> String {
-        todo!();
-    }
-
-    fn double_buffer(&self) {
-        let new_buf: Box<[MaybeUninit<char>]> = Box::new_uninit_slice(self.size * 2);
-
-        todo!();
-    }
 }
 
 impl fmt::Debug for GapBuffer {
@@ -227,9 +255,9 @@ impl fmt::Debug for GapBuffer {
             write!(f, "| ")?;
             for j in (i * row)..((i + 1) * row) {
                 //println!("j:{j} s:{} e:{}", self.gap_start, self.gap_end());
-                if j == self.gap_start {
+                if j == self.gap_start && !(self.gap_start > self.gap_end) {
                     write!(f, "> ")?;
-                } else if j == self.gap_end {
+                } else if j == self.gap_end && !(self.gap_start > self.gap_end) {
                     write!(f, "< ")?;
                 } else if j < self.gap_start || j > self.gap_end {
                     let c = unsafe { self.data[j].assume_init_ref() };
