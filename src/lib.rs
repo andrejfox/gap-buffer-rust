@@ -55,6 +55,18 @@ impl GapBuffer {
 }
 
 impl GapBuffer {
+    pub fn get_cursor(&self) -> usize {
+        self.gap_start
+    }
+
+    pub fn len(&self) -> usize {
+        self.text_size
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     /// Inserts `string` at the cursor.
     pub fn insert<T: AsRef<str>>(&mut self, string: T) {
         let s = string.as_ref();
