@@ -23,12 +23,11 @@ impl GapBuffer {
         let s = string.as_ref();
         let num_of_chars = s.chars().count();
 
-        let size;
-        if num_of_chars < MIN_SIZE {
-            size = MIN_SIZE;
+        let size = if num_of_chars < MIN_SIZE {
+            MIN_SIZE
         } else {
-            size = num_of_chars.next_power_of_two();
-        }
+            num_of_chars.next_power_of_two()
+        };
 
         let mut data: Box<[MaybeUninit<char>]> = Box::new_uninit_slice(size * 2);
 
@@ -88,7 +87,7 @@ impl GapBuffer {
     }
 
     pub fn backspace(&mut self) -> Result<(), GapBufferError> {
-        if self.gap_start <= 0 {
+        if self.gap_start == 0 {
             return Err(GapBufferError::CursorAtEnd);
         }
 
@@ -121,7 +120,7 @@ impl GapBuffer {
     }
 
     pub fn move_left(&mut self) -> Result<(), GapBufferError> {
-        if self.gap_start <= 0 {
+        if self.gap_start == 0 {
             return Err(GapBufferError::CursorAtEnd);
         }
 
@@ -191,6 +190,17 @@ impl GapBuffer {
     }
 }
 
+impl fmt::Display for GapBuffer {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.text_size == 0 {
+            return Ok(());
+        }
+
+        let s = self.fetch(0, self.text_size - 1).unwrap();
+        write!(f, "{s}")
+    }
+}
+
 impl fmt::Debug for GapBuffer {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
@@ -206,9 +216,9 @@ impl fmt::Debug for GapBuffer {
             write!(f, "| ")?;
 
             for j in (i * row)..((i + 1) * row) {
-                if j == self.gap_start && !(self.gap_start > self.gap_end) {
+                if j == self.gap_start && (self.gap_start <= self.gap_end) {
                     write!(f, "> ")?;
-                } else if j == self.gap_end && !(self.gap_start > self.gap_end) {
+                } else if j == self.gap_end && (self.gap_start <= self.gap_end) {
                     write!(f, "< ")?;
                 } else if j < self.gap_start || j > self.gap_end {
                     let c = unsafe { self.data[j].assume_init_ref() };
@@ -223,7 +233,7 @@ impl fmt::Debug for GapBuffer {
                 break;
             }
 
-            write!(f, "|\n")?;
+            writeln!(f, "|")?;
         }
 
         Ok(())
@@ -234,76 +244,28 @@ impl fmt::Debug for GapBuffer {
 mod tests {
     use super::*;
 
-    fn text(buf: &GapBuffer) -> String {
-        if buf.text_size == 0 {
-            String::new()
-        } else {
-            buf.fetch(0, buf.text_size - 1).unwrap()
-        }
+    #[test]
+    fn display_empty_buffer() {
+        let buf = GapBuffer::new("");
+
+        assert_eq!(buf.to_string(), "");
     }
 
     #[test]
-    fn correct_fetching() {
-        let mut buf = GapBuffer::new("The_fence!");
-        buf.move_cursor(5).unwrap();
-        let mut s= buf.fetch(0, 9).unwrap();
-        assert!(s.contains("The_fence!"));
-        s = buf.fetch(0, 8).unwrap();
-        assert!(s.contains("The_fence"));
-        s = buf.fetch(0, 7).unwrap();
-        assert!(s.contains("The_fenc"));
-        s = buf.fetch(0, 6).unwrap();
-        assert!(s.contains("The_fen"));
-        s = buf.fetch(0, 5).unwrap();
-        assert!(s.contains("The_fe"));
-        s = buf.fetch(0, 4).unwrap();
-        assert!(s.contains("The_f"));
-        s = buf.fetch(0, 3).unwrap();
-        assert!(s.contains("The_"));
-        s = buf.fetch(0, 2).unwrap();
-        assert!(s.contains("The"));
-        s = buf.fetch(0, 1).unwrap();
-        assert!(s.contains("Th"));
-        s = buf.fetch(0, 0).unwrap();
-        assert!(s.contains("T"));
+    fn display_non_empty_buffer() {
+        let mut buf = GapBuffer::new("hello");
 
-        s = buf.fetch(9, 9).unwrap();
-        assert!(s.contains("!"));
-        s = buf.fetch(8, 9).unwrap();
-        assert!(s.contains("e!"));
-        s = buf.fetch(7, 9).unwrap();
-        assert!(s.contains("ce!"));
-        s = buf.fetch(6, 9).unwrap();
-        assert!(s.contains("nce!"));
-        s = buf.fetch(5, 9).unwrap();
-        assert!(s.contains("ence!"));
-        s = buf.fetch(4, 9).unwrap();
-        assert!(s.contains("fence!"));
-        s = buf.fetch(3, 9).unwrap();
-        assert!(s.contains("_fence!"));
-        s = buf.fetch(2, 9).unwrap();
-        assert!(s.contains("e_fence!"));
-        s = buf.fetch(1, 9).unwrap();
-        assert!(s.contains("he_fence!"));
-        s = buf.fetch(0, 9).unwrap();
-        assert!(s.contains("The_fence!"));
-    }
+        buf.move_cursor(2).unwrap();
+        buf.insert("y");
 
-    #[test]
-    fn buffer_expands_correctly() {
-        let mut buf = GapBuffer::new("Hey Monica, hey!");
-        buf.move_cursor(11);
-        buf.insert("xxxxxxxxxxxxxxxx");
-        assert_eq!(buf.size, 32);
-        buf.insert("x");
-        assert_eq!(buf.size, 64);
+        assert_eq!(buf.to_string(), "heyllo");
     }
 
     #[test]
     fn new_empty() {
         let buf = GapBuffer::new("");
 
-        assert_eq!(text(&buf), "");
+        assert_eq!(buf.to_string(), "");
         assert_eq!(buf.text_size, 0);
     }
 
@@ -311,7 +273,7 @@ mod tests {
     fn new_with_text() {
         let buf = GapBuffer::new("hello");
 
-        assert_eq!(text(&buf), "hello");
+        assert_eq!(buf.to_string(), "hello");
         assert_eq!(buf.text_size, 5);
     }
 
@@ -321,7 +283,7 @@ mod tests {
 
         buf.insert(" world");
 
-        assert_eq!(text(&buf), "hello world");
+        assert_eq!(buf.to_string(), "hello world");
     }
 
     #[test]
@@ -331,7 +293,7 @@ mod tests {
         buf.move_cursor(0).unwrap();
         buf.insert("hello ");
 
-        assert_eq!(text(&buf), "hello world");
+        assert_eq!(buf.to_string(), "hello world");
     }
 
     #[test]
@@ -341,7 +303,7 @@ mod tests {
         buf.move_cursor(2).unwrap();
         buf.insert("l");
 
-        assert_eq!(text(&buf), "hello");
+        assert_eq!(buf.to_string(), "hello");
     }
 
     #[test]
@@ -352,7 +314,7 @@ mod tests {
         buf.insert("def");
         buf.insert("ghi");
 
-        assert_eq!(text(&buf), "abcdefghi");
+        assert_eq!(buf.to_string(), "abcdefghi");
     }
 
     #[test]
@@ -362,7 +324,7 @@ mod tests {
         buf.move_cursor(3).unwrap();
         buf.insert("X");
 
-        assert_eq!(text(&buf), "abcXdef");
+        assert_eq!(buf.to_string(), "abcXdef");
     }
 
     #[test]
@@ -373,7 +335,7 @@ mod tests {
         buf.move_cursor(6).unwrap();
         buf.insert("!");
 
-        assert_eq!(text(&buf), "abcdef!");
+        assert_eq!(buf.to_string(), "abcdef!");
     }
 
     #[test]
@@ -383,7 +345,7 @@ mod tests {
         buf.move_cursor(0).unwrap();
         buf.insert("X");
 
-        assert_eq!(text(&buf), "Xabc");
+        assert_eq!(buf.to_string(), "Xabc");
     }
 
     #[test]
@@ -393,7 +355,7 @@ mod tests {
         buf.move_cursor(3).unwrap();
         buf.insert("X");
 
-        assert_eq!(text(&buf), "abcX");
+        assert_eq!(buf.to_string(), "abcX");
     }
 
     #[test]
@@ -431,7 +393,7 @@ mod tests {
         buf.move_cursor(2).unwrap();
         buf.backspace().unwrap();
 
-        assert_eq!(text(&buf), "acd");
+        assert_eq!(buf.to_string(), "acd");
     }
 
     #[test]
@@ -450,7 +412,7 @@ mod tests {
         buf.move_cursor(2).unwrap();
         buf.delete().unwrap();
 
-        assert_eq!(text(&buf), "abd");
+        assert_eq!(buf.to_string(), "abd");
     }
 
     #[test]
@@ -525,7 +487,7 @@ mod tests {
 
         buf.insert(&s);
 
-        assert_eq!(text(&buf), s);
+        assert_eq!(buf.to_string(), s);
     }
 
     #[test]
@@ -537,7 +499,7 @@ mod tests {
         let s = "x".repeat(100);
         buf.insert(&s);
 
-        assert_eq!(text(&buf), format!("he{}llo", s));
+        assert_eq!(buf.to_string(), format!("he{s}llo"));
     }
 
     #[test]
@@ -556,7 +518,7 @@ mod tests {
         buf.move_cursor(0).unwrap();
         buf.insert("> ");
 
-        assert_eq!(text(&buf), "> HelloBeautiful World");
+        assert_eq!(buf.to_string(), "> HelloBeautiful World");
     }
 
     #[test]
@@ -571,7 +533,7 @@ mod tests {
             buf.move_cursor(i).unwrap();
         }
 
-        assert_eq!(text(&buf), "abcdefghijklmnopqrstuvwxyz");
+        assert_eq!(buf.to_string(), "abcdefghijklmnopqrstuvwxyz");
     }
 
     #[test]
@@ -582,7 +544,7 @@ mod tests {
             buf.insert("a");
         }
 
-        assert_eq!(text(&buf), "a".repeat(50));
+        assert_eq!(buf.to_string(), "a".repeat(50));
 
         buf.move_cursor(0).unwrap();
 
@@ -590,6 +552,63 @@ mod tests {
             buf.delete().unwrap();
         }
 
-        assert_eq!(text(&buf), "");
+        assert_eq!(buf.to_string(), "");
+    }
+
+    #[test]
+    fn correct_fetching() {
+        let mut buf = GapBuffer::new("The_fence!");
+        buf.move_cursor(5).unwrap();
+        let mut s= buf.fetch(0, 9).unwrap();
+        assert!(s.contains("The_fence!"));
+        s = buf.fetch(0, 8).unwrap();
+        assert!(s.contains("The_fence"));
+        s = buf.fetch(0, 7).unwrap();
+        assert!(s.contains("The_fenc"));
+        s = buf.fetch(0, 6).unwrap();
+        assert!(s.contains("The_fen"));
+        s = buf.fetch(0, 5).unwrap();
+        assert!(s.contains("The_fe"));
+        s = buf.fetch(0, 4).unwrap();
+        assert!(s.contains("The_f"));
+        s = buf.fetch(0, 3).unwrap();
+        assert!(s.contains("The_"));
+        s = buf.fetch(0, 2).unwrap();
+        assert!(s.contains("The"));
+        s = buf.fetch(0, 1).unwrap();
+        assert!(s.contains("Th"));
+        s = buf.fetch(0, 0).unwrap();
+        assert!(s.contains("T"));
+
+        s = buf.fetch(9, 9).unwrap();
+        assert!(s.contains("!"));
+        s = buf.fetch(8, 9).unwrap();
+        assert!(s.contains("e!"));
+        s = buf.fetch(7, 9).unwrap();
+        assert!(s.contains("ce!"));
+        s = buf.fetch(6, 9).unwrap();
+        assert!(s.contains("nce!"));
+        s = buf.fetch(5, 9).unwrap();
+        assert!(s.contains("ence!"));
+        s = buf.fetch(4, 9).unwrap();
+        assert!(s.contains("fence!"));
+        s = buf.fetch(3, 9).unwrap();
+        assert!(s.contains("_fence!"));
+        s = buf.fetch(2, 9).unwrap();
+        assert!(s.contains("e_fence!"));
+        s = buf.fetch(1, 9).unwrap();
+        assert!(s.contains("he_fence!"));
+        s = buf.fetch(0, 9).unwrap();
+        assert!(s.contains("The_fence!"));
+    }
+
+    #[test]
+    fn buffer_expands_correctly() {
+        let mut buf = GapBuffer::new("Hey Monica, hey!");
+        buf.move_cursor(11).unwrap();
+        buf.insert("xxxxxxxxxxxxxxxx");
+        assert_eq!(buf.size, 32);
+        buf.insert("x");
+        assert_eq!(buf.size, 64);
     }
 }
